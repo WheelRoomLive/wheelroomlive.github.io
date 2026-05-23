@@ -221,8 +221,8 @@ export function makeSpin(room, actor) {
   const timestamp = now();
   const forcedSpin = validNextSpinOverride(room);
   const winnerIndex = forcedSpin?.winnerIndex ?? Math.floor(Math.random() * room.items.length);
-  const duration = 24000 + Math.floor(Math.random() * 12001);
-  const fullTurns = Math.floor(duration / 380) + Math.floor(Math.random() * 18);
+  const duration = 20000 + Math.floor(Math.random() * 6001);
+  const fullTurns = Math.floor(duration / 440) + Math.floor(Math.random() * 12);
   const segmentDeg = 360 / room.items.length;
   const landingBias = forcedSpin?.landingBias ?? (0.16 + Math.random() * 0.68);
   const targetAngle = winnerIndex * segmentDeg + segmentDeg * landingBias;

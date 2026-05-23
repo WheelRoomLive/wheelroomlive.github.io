@@ -44,6 +44,8 @@ const state = {
   unsubscribeRoom: null,
   currentRotation: 0,
   spinTimer: null,
+  activeSpinId: null,
+  localSpinEndsAt: 0,
   chatRenderVersion: 0
 };
 
@@ -347,45 +349,65 @@ function renderRoom() {
     .join("");
 
   drawWheel(room.items);
-  renderSpin(room, actualRole);
-  renderSpinHistory(room);
+  const spinSettledLocally = renderSpin(room, actualRole);
+  renderSpinHistory(room, spinSettledLocally);
   renderChat(room);
 }
 
 function renderSpin(room, actualRole) {
   if (!room.spin) {
+    state.activeSpinId = null;
+    state.localSpinEndsAt = 0;
     els.hubText.textContent = room.released ? "Ready" : "Locked";
     els.spinMeta.textContent = room.released ? "Ready to spin" : "Waiting for unlock";
     els.resultText.textContent = "-";
+    els.spinButton.disabled = !canSpin(room, actualRole);
     window.clearTimeout(state.spinTimer);
-    return;
+    return true;
   }
 
   const spin = room.spin;
   const winner = room.items[spin.winnerIndex] || "-";
   const remaining = Math.max(0, spin.endsAt - now());
+  const isNewSpin = state.activeSpinId !== spin.id;
+
+  if (isNewSpin) {
+    state.activeSpinId = spin.id;
+    state.localSpinEndsAt = now() + remaining + 250;
+  }
+
+  const localRemaining = Math.max(0, state.localSpinEndsAt - now());
+  const showResult = remaining <= 0 && localRemaining <= 0;
 
   window.clearTimeout(state.spinTimer);
-  els.hubText.textContent = remaining > 0 ? "Spinning" : "Result";
-  els.spinMeta.textContent = remaining > 0 ? `Active spin by ${spin.by}...` : `${spin.by} spun`;
-  els.resultText.textContent = remaining > 0 ? "-" : winner;
-  els.spinButton.disabled = !canSpin(room, actualRole);
+  els.hubText.textContent = showResult ? "Result" : "Spinning";
+  els.spinMeta.textContent = showResult ? `${spin.by} spun` : `Active spin by ${spin.by}...`;
+  els.resultText.textContent = showResult ? winner : "-";
+  els.spinButton.disabled = !showResult || !canSpin(room, actualRole);
 
-  requestAnimationFrame(() => {
-    els.wheelCanvas.style.transitionDuration = `${spin.duration}ms`;
-    els.wheelCanvas.style.transform = `rotate(${spin.finalRotation}deg)`;
-    state.currentRotation = spin.finalRotation;
-  });
+  if (isNewSpin) {
+    requestAnimationFrame(() => {
+      els.wheelCanvas.style.transitionDuration = `${remaining}ms`;
+      els.wheelCanvas.style.transform = `rotate(${spin.finalRotation}deg)`;
+      state.currentRotation = spin.finalRotation;
+    });
+  }
 
-  if (remaining > 0) {
+  if (!showResult) {
     state.spinTimer = window.setTimeout(() => {
       renderRoom();
-    }, remaining + 100);
+    }, Math.max(remaining, localRemaining) + 100);
   }
+
+  return showResult;
 }
 
-function renderSpinHistory(room) {
-  const entries = visibleSpinHistory(room);
+function renderSpinHistory(room, spinSettledLocally = true) {
+  let entries = visibleSpinHistory(room);
+
+  if (!spinSettledLocally && room.spin?.id) {
+    entries = entries.filter(entry => entry.id !== room.spin.id);
+  }
 
   els.spinHistory.innerHTML = entries.length
     ? entries.slice(0, 8).map(entry => `
