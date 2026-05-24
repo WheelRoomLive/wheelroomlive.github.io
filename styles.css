@@ -501,15 +501,19 @@ code {
 .chat-panel {
   display: grid;
   gap: 10px;
+  min-height: 0;
 }
 
 .chat-log {
-  min-height: 170px;
-  max-height: 250px;
+  height: clamp(170px, 24vh, 220px);
+  min-height: 0;
   display: grid;
   align-content: start;
   gap: 8px;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -517,7 +521,7 @@ code {
 }
 
 .admin-chat-log {
-  max-height: 300px;
+  height: clamp(190px, 30vh, 300px);
 }
 
 .chat-message {
