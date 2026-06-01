@@ -330,16 +330,15 @@ code {
 
 .chat-panel {
   display: grid;
+  grid-template-rows: auto minmax(0, clamp(170px, 24vh, 220px)) auto;
   gap: 10px;
   min-height: 0;
 }
 
 .chat-log {
-  height: clamp(170px, 24vh, 220px);
+  height: auto;
   min-height: 0;
-  display: grid;
-  align-content: start;
-  gap: 8px;
+  display: block;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -357,6 +356,10 @@ code {
   border-radius: 8px;
   background: white;
   border: 1px solid rgba(24, 33, 47, 0.08);
+}
+
+.chat-message + .chat-message {
+  margin-top: 8px;
 }
 
 .chat-message div {
@@ -537,6 +540,10 @@ code {
 
   .wheel-wrap {
     width: min(94vw, 540px);
+  }
+
+  .chat-panel {
+    grid-template-rows: auto minmax(0, 190px) auto;
   }
 }
 
