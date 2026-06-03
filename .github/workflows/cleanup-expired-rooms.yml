@@ -1,0 +1,76 @@
+name: Cleanup expired rooms
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete expired Firebase rooms
+        env:
+          FIREBASE_API_KEY: "AIzaSyD-UCAyg9tPJGkU9GWED_P8Ur-kMhbBBh8"
+          FIREBASE_ADMIN_EMAIL: "admin@wheelroomlive.invalid"
+          FIREBASE_ADMIN_PASSWORD: ${{ secrets.FIREBASE_ADMIN_PASSWORD }}
+          FIREBASE_DATABASE_URL: "https://wheel-44c7f-default-rtdb.europe-west1.firebasedatabase.app"
+          ROOM_TTL_MS: "86400000"
+        run: |
+          node <<'NODE'
+          const {
+            FIREBASE_API_KEY,
+            FIREBASE_ADMIN_EMAIL,
+            FIREBASE_ADMIN_PASSWORD,
+            FIREBASE_DATABASE_URL,
+            ROOM_TTL_MS
+          } = process.env;
+
+          if (!FIREBASE_ADMIN_PASSWORD) {
+            throw new Error("FIREBASE_ADMIN_PASSWORD secret is missing.");
+          }
+
+          const ttlMs = Number(ROOM_TTL_MS);
+          const cutoff = Date.now() - ttlMs;
+
+          async function requestJson(url, options = {}) {
+            const response = await fetch(url, options);
+            const text = await response.text();
+
+            if (!response.ok) {
+              throw new Error(`${options.method || "GET"} ${url} failed: ${response.status} ${text}`);
+            }
+
+            return text ? JSON.parse(text) : null;
+          }
+
+          const auth = await requestJson(
+            `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${encodeURIComponent(FIREBASE_API_KEY)}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                email: FIREBASE_ADMIN_EMAIL,
+                password: FIREBASE_ADMIN_PASSWORD,
+                returnSecureToken: true
+              })
+            }
+          );
+
+          const query = new URL(`${FIREBASE_DATABASE_URL}/rooms.json`);
+          query.searchParams.set("auth", auth.idToken);
+          query.searchParams.set("orderBy", JSON.stringify("lastActiveAt"));
+          query.searchParams.set("endAt", String(cutoff));
+
+          const rooms = await requestJson(query);
+          const entries = Object.entries(rooms || {})
+            .filter(([, room]) => room && Number(room.lastActiveAt || 0) <= cutoff);
+
+          for (const [roomId] of entries) {
+            const deleteUrl = new URL(`${FIREBASE_DATABASE_URL}/rooms/${encodeURIComponent(roomId)}.json`);
+            deleteUrl.searchParams.set("auth", auth.idToken);
+            await requestJson(deleteUrl, { method: "DELETE" });
+          }
+
+          console.log(`Deleted ${entries.length} expired room(s).`);
+          NODE
